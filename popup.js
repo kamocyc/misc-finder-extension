@@ -173,7 +173,7 @@ const init = () => {
   };
 
   document.getElementById('search-hatebu').onchange = e => {
-    chrome.storage.sync({ 'search_hatebu': e.target.checked});
+    chrome.storage.sync.set({ 'search_hatebu': e.target.checked});
   };
 };
 
