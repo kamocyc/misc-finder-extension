@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <style>
+      #searchQuery {
+        height: 20px;
+        width: 400px;
+      }
+
+      #listView {
+         padding-left: 0px;
+      }
+      
+      ul {
+        list-style :none;
+      }
+      
+      .result-body {
+        margin: 5px 0px;
+        border: solid 1px #999999;
+      }
+      
+      .item-scrapbox {
+        background-color: #f0fff0;
+      }
+      
+      .item-hatebu {
+        background-color: #f0f5ff;
+      }
+      
+      .item-history {
+        background-color: #efefef;
+      }
+      
+      .item-bookmark {
+        background-color: #fff1ec;
+      }
+    </style>
+  </head>
+  <body>
+    <form id="searchForm">
+      <input id="searchQuery" type="text" autofocus>
+      <button id="submitButton">Search</button>
+      <div style="display: inline-block; margin: 0px 10px;">
+        <label for="search-hatebu">All</label>
+        <input id="search-hatebu" name="search-hatebu" type="checkbox">
+      </div>
+    </form>
+    
+    <ul id="listView">
+    </ul>
+    
+    <script src="popup.js"></script>
+  </body>
+</html>

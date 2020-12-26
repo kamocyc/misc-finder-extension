@@ -1,0 +1,39 @@
+{
+  "name": "misc finder",
+  "version": "1.0",
+  "description": "Search in bookmarks, history, Scrapbox, Hatena-bookmarks",
+  "permissions": [
+    "storage",
+    "history",
+    "bookmarks",
+    "https://scrapbox.io/",
+    "https://b.hatena.ne.jp/"],
+  "options_page": "options.html",
+  "background": {
+    "scripts": ["background.js"],
+    "persistent": false
+  },
+  "browser_action": {
+    "default_popup": "popup.html",
+    "default_icon": {
+      "16": "images/get_started16.png",
+      "32": "images/get_started32.png",
+      "48": "images/get_started48.png",
+      "128": "images/get_started128.png"
+    }
+  },
+  "icons": {
+    "16": "images/get_started16.png",
+    "32": "images/get_started32.png",
+    "48": "images/get_started48.png",
+    "128": "images/get_started128.png"
+  },
+  "commands": {
+    "_execute_browser_action": {
+      "suggested_key": {
+        "default": "Ctrl+Shift+F"
+      }
+    }
+  },
+  "manifest_version": 2
+}
