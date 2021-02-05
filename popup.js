@@ -20,7 +20,7 @@ const scrapboxFinder = async (project_name, query) => {
   return !data.pages ? [] : data.pages.map(row => {
     return {
       url: `https://scrapbox.io/${project_name}/${encodeURIComponent(row.title)}`,
-      description: row.title + '\n\n' + row.descriptions.join('\n'),
+      description: row.title + '\n\n' + row.lines.join('\n'),
       type: 'scrapbox'
     }
   });
