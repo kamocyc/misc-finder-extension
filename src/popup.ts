@@ -1,23 +1,24 @@
-// Copyright 2018 The Chromium Authors. All rights reserved.
-// Use of this source code is governed by a BSD-style license that can be
-// found in the LICENSE file.
+import { browser } from 'webextension-polyfill-ts';
 
-'use strict';
+type SearchResult = {
+  url?: string,
+  description: string,
+  type: string
+}
 
-
-const extractHostname = url => {
+const extractHostname = (url: string) => {
   try {
     return (new URL(url)).hostname;
   } catch (e) { return ''; }
 };
 
 // https://scrapbox.io/scrapboxlab/API
-const scrapboxFinder = async (project_name, query) => {  
+const scrapboxFinder = async (project_name: string, query: string): Promise<SearchResult[]> => {  
   const url = `https://scrapbox.io/api/pages/${project_name}/search/query?q=${encodeURIComponent(query)}`;
   const res = await fetch(url);
   const data = await res.json();
   
-  return !data.pages ? [] : data.pages.map(row => {
+  return !data.pages ? [] : data.pages.map((row: any) => {
     return {
       url: `https://scrapbox.io/${project_name}/${encodeURIComponent(row.title)}`,
       description: row.title + '\n\n' + row.lines.join('\n'),
@@ -27,12 +28,12 @@ const scrapboxFinder = async (project_name, query) => {
 };
 
 // http://developer.hatena.ne.jp/ja/documents/bookmark/apis/fulltext_search
-const hatenaBookmarkFinder = async (query) => {
+const hatenaBookmarkFinder = async (query: string): Promise<SearchResult[]> => {
   const url = `https://b.hatena.ne.jp/my/search/json?q=${encodeURIComponent(query)}&limit=100`;
   const res = await fetch(url);
   const data = await res.json();
   
-  return !data.bookmarks ? [] : data.bookmarks.map(bookmark => {
+  return !data.bookmarks ? [] : data.bookmarks.map((bookmark: any) => {
     return {
       url: bookmark.entry.url,
       description: bookmark.entry.title + '\n' + extractHostname(bookmark.entry.url),
@@ -41,7 +42,7 @@ const hatenaBookmarkFinder = async (query) => {
   });
 };
 
-const isNotSpecificDomains = url => {
+const isNotSpecificDomains = (url: string): boolean => {
   const ngDomains = ['https://scrapbox.io/', 'https://b.hatena.ne.jp/'];
   return ngDomains.every(domain => 
     url.substr(0, domain.length) !== domain
@@ -49,63 +50,59 @@ const isNotSpecificDomains = url => {
 };
 
 // https://developer.chrome.com/docs/extensions/reference/history/#method-search
-const historyFinder = (query) => {
-  return new Promise((resolve) => {
-    chrome.history.search({
+const historyFinder = async (query: string): Promise<SearchResult[]> => {
+  const historyItems = await browser.history.search({
       'text': query,
       'startTime': 1000 * 60 * 60 * 24 * 356 * 20 // 20 years
-    }, (historyItems) => {
-      resolve(historyItems.filter(h => isNotSpecificDomains(h.url)).map(history => {
-        return {
-          url: history.url,
-          description: history.title + '\n' + extractHostname(history.url),
-          type: 'history'
-        };
-      }));;
     });
-  });
+    
+  return historyItems
+    .filter(h => h.url !== undefined && isNotSpecificDomains(h.url))
+    .map(history => {
+      return {
+        url: history.url,
+        description: history.title + '\n' + extractHostname(history.url ?? ""),
+        type: 'history'
+      };
+    });
 };
 
 // https://developer.chrome.com/docs/extensions/reference/bookmarks/
-const bookmarkFinder = query => {
-  return new Promise((resolve) => {
-    chrome.bookmarks.search(
-      query,
-      bookmarks => {
-        resolve(bookmarks.map(bookmark => {
-          return {
-            url: bookmark.url,
-            description: bookmark.title + '\n' + extractHostname(bookmark.url),
-            type: 'bookmark'
-          };
-        }));
-      }
-    )
+const bookmarkFinder = async (query: string): Promise<SearchResult[]> => {
+  const bookmarks = await browser.bookmarks.search(query);
+  return bookmarks.map(bookmark => {
+    return {
+      url: bookmark.url,
+      description: bookmark.title + (bookmark.url === undefined ? "" : ('\n' + extractHostname(bookmark.url))),
+      type: 'bookmark'
+    };
   });
 };
 
 const clearListView = () => {
   const list = document.getElementById('listView');
-  list.innerHTML = '';
+  list!.innerHTML = '';
 };
 
-const appendToListView = (results) => {
+const appendToListView = (results: SearchResult[]) => {
   const list = document.getElementById('listView');
   results.forEach(result => {
     const aElem = document.createElement('a');
-    aElem.setAttribute('href', result.url);
+    if(result.url !== undefined) {
+      aElem.setAttribute('href', result.url);
+    }
     aElem.innerText = result.description;
     aElem.onclick = e => {
       // open a link in a new tab in background
       e.preventDefault();
-      chrome.tabs.create({url: aElem.href, active: false});
+      browser.tabs.create({url: aElem.href, active: false});
     };
     
     const liElement = document.createElement("li");
     liElement.appendChild(aElem);
     liElement.className = 'result-body ' + 'item-' + result.type;
     
-    list.appendChild(liElement);
+    list?.appendChild(liElement);
   });
 };
 
@@ -114,45 +111,45 @@ const addWaitingIcon = () => {
   const elm = document.createElement('li');
   elm.id = 'waitingIcon';
   elm.innerText = 'Loading ...';
-  list.appendChild(elm);
+  list?.appendChild(elm);
 }
 
 const removeWaitingIcon = () => {
   const elm = document.getElementById('waitingIcon');
-  if (elm !== undefined) {
+  if (elm !== null) {
     elm.remove();
   }
 }
 
-const projects = [];
+const projects: string[] = [];
 
-const init = () => {
-  chrome.storage.sync.get(['projects', 'search_hatebu'], function(data) {
-    (data.projects === undefined ? [] : data.projects).forEach(project => {
-      //TODO: should check stored data is valid for security
-      projects.push(project);
-    });
-    
-    document.getElementById('search-hatebu').checked =
-      data.search_hatebu === undefined ? false : true;
+const init = async () => {
+  const data = await browser.storage.sync.get(['projects', 'search_hatebu']);
+  (data.projects === undefined ? [] : data.projects).forEach((project: string) => {
+    //TODO: should check stored data is valid for security
+    projects.push(project);
   });
+    
+  (document.getElementById('search-hatebu') as HTMLInputElement).checked =
+    data.search_hatebu === undefined ? false : true;
   
-  document.getElementById('searchForm').onsubmit = async (e) => {
+  document.getElementById('searchForm')!.onsubmit = async (e) => {
     e.preventDefault();
     
     clearListView();
     
     addWaitingIcon();
     
+    const searchQuery = document.getElementById('searchQuery') as HTMLInputElement;
+    
     const scrapboxResults =
       projects.map(async project => {
         //TODO: refactor
-        const searchQuery = document.getElementById('searchQuery');
         const results = await scrapboxFinder(project, searchQuery.value);
         appendToListView(results);
       });
     
-    if(document.getElementById('search-hatebu').checked) {
+    if((document.getElementById('search-hatebu') as HTMLInputElement).checked) {
       scrapboxResults.push((async () => {
         const results = await hatenaBookmarkFinder(searchQuery.value);
         appendToListView(results);
@@ -172,8 +169,8 @@ const init = () => {
     removeWaitingIcon();
   };
 
-  document.getElementById('search-hatebu').onchange = e => {
-    chrome.storage.sync.set({ 'search_hatebu': e.target.checked});
+  document.getElementById('search-hatebu')!.onchange = async (e: Event) => {
+    await browser.storage.sync.set({ 'search_hatebu': (e.target as HTMLInputElement).checked});
   };
 };
 

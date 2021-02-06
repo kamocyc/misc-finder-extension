@@ -1,0 +1,13 @@
+{
+  "compilerOptions": {
+    "module": "commonjs",
+    // "noImplicitAny": true,
+    "strict": true,
+    "noImplicitReturns": true,
+    "target": "ES2020",
+    "removeComments": true,
+    "preserveConstEnums": true,
+    "sourceMap": true,
+    "esModuleInterop": true
+  }
+}
