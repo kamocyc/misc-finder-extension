@@ -7,7 +7,8 @@
     "history",
     "bookmarks",
     "https://scrapbox.io/",
-    "https://b.hatena.ne.jp/"],
+    "https://b.hatena.ne.jp/",
+    "https://api.zenn.dev/"],
   "options_page": "options.html",
   "background": {
     "scripts": ["background.js"],

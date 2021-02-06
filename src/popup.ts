@@ -1,15 +1,26 @@
 import { browser } from 'webextension-polyfill-ts';
 
+type ResultCategory = 'scrapbox' | 'hatebu' | 'zenn' | 'history' | 'bookmark'
 type SearchResult = {
   url?: string,
   description: string,
-  type: string
+  type: ResultCategory
 }
 
 const extractHostname = (url: string) => {
   try {
     return (new URL(url)).hostname;
   } catch (e) { return ''; }
+};
+
+const ambiguouslyIncludes = (whole: string, key: string) => whole.toLocaleLowerCase().includes(key.toLocaleLowerCase());
+
+// return true if not domains that are searched by other methods
+const isNotSpecificDomains = (url: string): boolean => {
+  const ngDomains = ['https://scrapbox.io/', 'https://b.hatena.ne.jp/', 'https://zenn.dev/'];
+  return ngDomains.every(domain => 
+    url.substr(0, domain.length) !== domain
+  );
 };
 
 // https://scrapbox.io/scrapboxlab/API
@@ -42,11 +53,23 @@ const hatenaBookmarkFinder = async (query: string): Promise<SearchResult[]> => {
   });
 };
 
-const isNotSpecificDomains = (url: string): boolean => {
-  const ngDomains = ['https://scrapbox.io/', 'https://b.hatena.ne.jp/'];
-  return ngDomains.every(domain => 
-    url.substr(0, domain.length) !== domain
-  );
+// Basically, this api is not for third-party uses. So, breaking changes may occur.
+const zennFinder = async (query: string): Promise<SearchResult[]> => {
+  const url = `https://api.zenn.dev/me/library/likes`;
+  const res = await fetch(url);
+  const data = await res.json();
+  
+  return !data.items ? [] : data.items
+    .filter((item: any) =>
+      ambiguouslyIncludes(item.title, query) ||
+      ambiguouslyIncludes(item.slug, query))
+    .map((item: any) => {
+      return {
+        url: "https://zenn.dev" + item.shortlink_path,
+        description: item.title,
+        type: 'zenn'
+      };
+    });
 };
 
 // https://developer.chrome.com/docs/extensions/reference/history/#method-search
@@ -151,15 +174,23 @@ const init = async () => {
     
     if((document.getElementById('search-hatebu') as HTMLInputElement).checked) {
       scrapboxResults.push((async () => {
-        const results = await hatenaBookmarkFinder(searchQuery.value);
+        const results = await hatenaBookmarkFinder(searchQuery.value)
+          .catch(() => { console.log("Warning: error occured in hatebu"); return []; });
         appendToListView(results);
       })());
       scrapboxResults.push((async () => {
-        const results = await historyFinder(searchQuery.value);
+        const results = await zennFinder(searchQuery.value)
+          .catch(() => { console.log("Warning: error occured in zenn"); return []; });
+        appendToListView(results);
+      })());
+      scrapboxResults.push((async () => {
+        const results = await historyFinder(searchQuery.value)
+          .catch(() => { console.log("Warning: error occured in history"); return []; });
         appendToListView(results);
       })());
       scrapboxResults.concat((async () => {
-        const results = await bookmarkFinder(searchQuery.value);
+        const results = await bookmarkFinder(searchQuery.value)
+          .catch(() => { console.log("Warning: error occured in bookmark"); return []; });
         appendToListView(results);
       })());
     }
