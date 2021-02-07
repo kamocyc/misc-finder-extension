@@ -16,12 +16,12 @@ const extractHostname = (url: string) => {
 const ambiguouslyIncludes = (whole: string, key: string) => whole.toLocaleLowerCase().includes(key.toLocaleLowerCase());
 
 // return true if not domains that are searched by other methods
-const isNotSpecificDomains = (url: string): boolean => {
-  const ngDomains = ['https://scrapbox.io/', 'https://b.hatena.ne.jp/', 'https://zenn.dev/'];
-  return ngDomains.every(domain => 
-    url.substr(0, domain.length) !== domain
-  );
-};
+// const isNotSpecificDomains = (url: string): boolean => {
+//   const ngDomains = ['https://scrapbox.io/', 'https://b.hatena.ne.jp/', 'https://zenn.dev/'];
+//   return ngDomains.every(domain => 
+//     url.substr(0, domain.length) !== domain
+//   );
+// };
 
 // https://scrapbox.io/scrapboxlab/API
 const scrapboxFinder = async (project_name: string, query: string): Promise<SearchResult[]> => {  
@@ -80,7 +80,7 @@ const historyFinder = async (query: string): Promise<SearchResult[]> => {
     });
     
   return historyItems
-    .filter(h => h.url !== undefined && isNotSpecificDomains(h.url))
+    .filter(h => h.url !== undefined /*&& isNotSpecificDomains(h.url)*/)
     .map(history => {
       return {
         url: history.url,
@@ -107,8 +107,45 @@ const clearListView = () => {
   list!.innerHTML = '';
 };
 
-const appendToListView = (results: SearchResult[]) => {
+const removeDuplicates = <T, S>(arr: T[], f: (e: T) => S) => {
+  const found = new Set<S>();
+  const results = [];
+  for(let i=0; i<arr.length; i++) {
+    const k = f(arr[i]);
+    if(!found.has(k)) {
+      found.add(k);
+      results.push(arr[i]);
+    }
+  }
+  return results;
+}
+
+const arrayMinus = <S, T, V>(arr1: S[], arr2: T[], f1: (e: S) => V, f2: (e: T) => V) => {
+  const keys = new Set(arr2.map(e => f2(e)));
+  const results = [];
+  for(let i=0; i<arr1.length; i++) {
+    if(!keys.has(f1(arr1[i]))) {
+      results.push(arr1[i]);
+    }
+  }
+  return results;
+};
+
+const appendToListView = (results_: SearchResult[]) => {
+
   const list = document.getElementById('listView');
+  if(list === null) throw new Error("appendToListView");
+  
+  const existing_urls =
+    [...list.children].filter(e => e.tagName === 'LI' && e.children.length >= 1 && (e.children[0] as HTMLAnchorElement).href).map(e => (e.children[0] as HTMLAnchorElement).href);
+  
+  console.log(existing_urls);
+  // TODO: すでにリストにあるURLを除外
+  const results =
+    arrayMinus(
+      removeDuplicates(results_, e => e.url),
+      existing_urls, e => e.url, e => e);
+  
   results.forEach(result => {
     const aElem = document.createElement('a');
     if(result.url !== undefined) {
@@ -125,7 +162,7 @@ const appendToListView = (results: SearchResult[]) => {
     liElement.appendChild(aElem);
     liElement.className = 'result-body ' + 'item-' + result.type;
     
-    list?.appendChild(liElement);
+    list.appendChild(liElement);
   });
 };
 
@@ -144,6 +181,48 @@ const removeWaitingIcon = () => {
   }
 }
 
+const search = async () => {
+  clearListView();
+  
+  addWaitingIcon();
+  
+  const searchQuery = document.getElementById('searchQuery') as HTMLInputElement;
+  
+  const scrapboxResults =
+    projects.map(async project => {
+      //TODO: refactor
+      const results = await scrapboxFinder(project, searchQuery.value);
+      appendToListView(results);
+    });
+  
+  if((document.getElementById('search-hatebu') as HTMLInputElement).checked) {
+    scrapboxResults.push((async () => {
+      const results = await hatenaBookmarkFinder(searchQuery.value)
+        .catch(() => { console.log("Warning: error occured in hatebu"); return []; });
+      appendToListView(results);
+    })());
+    scrapboxResults.push((async () => {
+      const results = await zennFinder(searchQuery.value)
+        .catch(() => { console.log("Warning: error occured in zenn"); return []; });
+      appendToListView(results);
+    })());
+    scrapboxResults.push((async () => {
+      const results = await historyFinder(searchQuery.value)
+        .catch(() => { console.log("Warning: error occured in history"); return []; });
+      appendToListView(results);
+    })());
+    scrapboxResults.concat((async () => {
+      const results = await bookmarkFinder(searchQuery.value)
+        .catch(() => { console.log("Warning: error occured in bookmark"); return []; });
+      appendToListView(results);
+    })());
+  }
+  
+  await Promise.all(scrapboxResults);
+  
+  removeWaitingIcon();
+};
+
 const projects: string[] = [];
 
 const init = async () => {
@@ -159,45 +238,7 @@ const init = async () => {
   document.getElementById('searchForm')!.onsubmit = async (e) => {
     e.preventDefault();
     
-    clearListView();
-    
-    addWaitingIcon();
-    
-    const searchQuery = document.getElementById('searchQuery') as HTMLInputElement;
-    
-    const scrapboxResults =
-      projects.map(async project => {
-        //TODO: refactor
-        const results = await scrapboxFinder(project, searchQuery.value);
-        appendToListView(results);
-      });
-    
-    if((document.getElementById('search-hatebu') as HTMLInputElement).checked) {
-      scrapboxResults.push((async () => {
-        const results = await hatenaBookmarkFinder(searchQuery.value)
-          .catch(() => { console.log("Warning: error occured in hatebu"); return []; });
-        appendToListView(results);
-      })());
-      scrapboxResults.push((async () => {
-        const results = await zennFinder(searchQuery.value)
-          .catch(() => { console.log("Warning: error occured in zenn"); return []; });
-        appendToListView(results);
-      })());
-      scrapboxResults.push((async () => {
-        const results = await historyFinder(searchQuery.value)
-          .catch(() => { console.log("Warning: error occured in history"); return []; });
-        appendToListView(results);
-      })());
-      scrapboxResults.concat((async () => {
-        const results = await bookmarkFinder(searchQuery.value)
-          .catch(() => { console.log("Warning: error occured in bookmark"); return []; });
-        appendToListView(results);
-      })());
-    }
-    
-    await Promise.all(scrapboxResults);
-    
-    removeWaitingIcon();
+    await search();
   };
 
   document.getElementById('search-hatebu')!.onchange = async (e: Event) => {
